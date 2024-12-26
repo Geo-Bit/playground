@@ -1,9 +1,77 @@
-let scene, camera, renderer;
+let scene, camera, renderer; // Main scene for text
+let carScene, carCamera, carRenderer; // Car scene
 let letters = []; // Array to store individual letter meshes
 let rotationSpeed = 0.01;
+let car;
+let mixer; // Animation mixer
+let animations; // Store the animations
+
+function initCarScene() {
+    carScene = new THREE.Scene();
+    carCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    carRenderer = new THREE.WebGLRenderer({ 
+        antialias: true,
+        powerPreference: "high-performance",
+        alpha: true
+    });
+    carRenderer.setClearColor(0x000000, 0);
+    carRenderer.setSize(200, 200);
+    document.getElementById('car-container').appendChild(carRenderer.domElement);
+
+    // Car scene lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    carScene.add(ambientLight);
+
+    const pointLight = new THREE.PointLight(0xffffff, 1.5);
+    pointLight.position.set(5, 5, 5);
+    carScene.add(pointLight);
+
+    // Position camera for side view
+    carCamera.position.set(5, 0, 0); // Moved camera to the side
+    carCamera.lookAt(0, 0, 0);
+
+    loadCar();
+}
+
+function loadCar() {
+    console.log('Starting to load car model...');
+    const loader = new THREE.GLTFLoader();
+    loader.load(
+        './impala_1964_lowrider.glb',
+        function (gltf) {
+            console.log('Car loaded successfully:', gltf);
+            car = gltf.scene;
+            
+            car.scale.set(0.5, 0.5, 0.5);
+            car.position.set(0, -0.5, 0);
+            car.rotation.set(
+                0,              // X rotation (pitch)
+                Math.PI,        // Y rotation (yaw)
+                0               // Z rotation (roll)
+            );
+            
+            carScene.add(car);
+
+            mixer = new THREE.AnimationMixer(car);
+            animations = gltf.animations;
+            
+            if (animations && animations.length) {
+                animations.forEach((clip) => {
+                    mixer.clipAction(clip).play();
+                });
+            }
+        },
+        function (xhr) {
+            console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+        },
+        function (error) {
+            console.error('Error loading the model:', error);
+        }
+    );
+}
 
 function init() {
-    // Scene setup
+    // Original scene setup
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     renderer = new THREE.WebGLRenderer({ 
@@ -12,18 +80,15 @@ function init() {
     });
     renderer.setClearColor(0xf0f0f0);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.physicallyCorrectLights = true;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
     document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-    // Camera position - moved even further back
-    camera.position.z = 12; // Increased from 10 to 12
+    // Camera position
+    camera.position.z = 12;
 
-    // Enhanced lighting setup for chrome effect
+    // Lighting for main scene
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
 
-    // Add multiple point lights for better reflections
     const pointLight = new THREE.PointLight(0xffffff, 1.5);
     pointLight.position.set(5, 5, 5);
     scene.add(pointLight);
@@ -32,15 +97,8 @@ function init() {
     pointLight2.position.set(-5, -5, 5);
     scene.add(pointLight2);
 
-    // Add rim lights for that extra shine
-    const rimLight1 = new THREE.PointLight(0xffffff, 1);
-    rimLight1.position.set(0, 10, -10);
-    scene.add(rimLight1);
-
-    const rimLight2 = new THREE.PointLight(0xffffff, 1);
-    rimLight2.position.set(0, -10, -10);
-    scene.add(rimLight2);
-
+    // Initialize both scenes
+    initCarScene();
     createText();
     animate();
     setupEventListeners();
@@ -123,24 +181,29 @@ function createText(textContent = 'CHROME') {
 
 function animate() {
     requestAnimationFrame(animate);
-    // Rotate each letter independently
+    
+    // Update text scene
     letters.forEach(letter => {
         letter.rotation.y += rotationSpeed;
     });
     renderer.render(scene, camera);
+
+    // Update car scene
+    if (mixer) {
+        mixer.update(0.016);
+    }
+    carRenderer.render(carScene, carCamera);
 }
 
 function setupEventListeners() {
     window.addEventListener('resize', onWindowResize, false);
     
     document.getElementById('textInput').addEventListener('input', (e) => {
-        createText(e.target.value.toUpperCase());
+        createText(e.target.value);
     });
 
     document.getElementById('bgColor').addEventListener('input', (e) => {
-        const color = e.target.value;
-        document.body.style.backgroundColor = color;
-        renderer.setClearColor(color);
+        document.body.style.backgroundColor = e.target.value;
     });
 }
 
