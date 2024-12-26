@@ -1,123 +1,20 @@
-let scene, camera, renderer; // Main scene for text
-let carScene, carCamera, carRenderer; // Car scene
-let letters = []; // Array to store individual letter meshes
+let scene, camera, renderer;
+let carSceneLeft, carCameraLeft, carRendererLeft;
+let carSceneRight, carCameraRight, carRendererRight;
+let carLeft, carRight;
+let mixerLeft, mixerRight;
+let letters = [];
 let rotationSpeed = 0.01;
-let car;
-let mixer; // Animation mixer
-let animations; // Store the animations
-let isGrayscale = false; // Changed default to false for color letters
+let isGrayscale = false;
+let showShadows = true;
+let carScale = .9;
+let baseSizeWithPadding = 350; // Increased from 300 to 350 for more width
+let carContainerSize = baseSizeWithPadding * carScale;
 
-function initCarScene() {
-    carScene = new THREE.Scene();
-    carCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-    carRenderer = new THREE.WebGLRenderer({ 
-        antialias: true,
-        powerPreference: "high-performance",
-        alpha: true
-    });
-    carRenderer.setClearColor(0x000000, 0);
-    carRenderer.setSize(200, 200);
-    carRenderer.physicallyCorrectLights = true;
-    carRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-    carRenderer.toneMappingExposure = 1.2; // Reduced exposure slightly
-    document.getElementById('car-container').appendChild(carRenderer.domElement);
-
-    // Balanced daylight setup
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.8); // Reduced ambient light
-    carScene.add(ambientLight);
-
-    // Main sun light
-    const sunLight = new THREE.DirectionalLight(0xffffff, 3.0); // Reduced intensity
-    sunLight.position.set(10, 15, 10);
-    carScene.add(sunLight);
-
-    // Softer sky light
-    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 1.0);
-    carScene.add(hemisphereLight);
-
-    // Balanced fill lights for detail
-    const fillLights = [
-        { pos: [-5, 2, 0], intensity: 1.0 },
-        { pos: [5, 2, 0], intensity: 1.0 },
-        { pos: [0, -2, 5], intensity: 0.8 },
-        { pos: [0, -2, -5], intensity: 0.8 }
-    ];
-
-    fillLights.forEach(light => {
-        const fill = new THREE.DirectionalLight(0xffffff, light.intensity);
-        fill.position.set(...light.pos);
-        carScene.add(fill);
-    });
-
-    // Position camera for side view
-    carCamera.position.set(5, 0, 0);
-    carCamera.lookAt(0, 0, 0);
-
-    loadCar();
-}
-
-function loadCar() {
-    console.log('Starting to load car model...');
-    const loader = new THREE.GLTFLoader();
-    loader.load(
-        './impala_1964_lowrider.glb',
-        function (gltf) {
-            console.log('Car loaded successfully:', gltf);
-            car = gltf.scene;
-            
-            // Balanced grayscale material
-            const grayscaleMaterial = new THREE.MeshStandardMaterial({
-                color: 0xffffff,
-                metalness: 0.8,    // Slightly increased for better reflections
-                roughness: 0.3,    // Increased for more surface detail
-                envMapIntensity: 1.2, // Reduced for more balanced reflections
-                onBeforeCompile: (shader) => {
-                    shader.fragmentShader = shader.fragmentShader.replace(
-                        '#include <color_fragment>',
-                        `
-                        #include <color_fragment>
-                        float gray = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-                        diffuseColor.rgb = vec3(gray);
-                        // Moderate brightness adjustment
-                        diffuseColor.rgb *= 1.1;
-                        `
-                    );
-                }
-            });
-            
-            car.traverse((child) => {
-                if (child.isMesh) {
-                    child.material = grayscaleMaterial;
-                }
-            });
-            
-            car.scale.set(0.5, 0.5, 0.5);
-            car.position.set(0, -0.5, 0);
-            car.rotation.set(
-                0,
-                Math.PI,
-                0
-            );
-            
-            carScene.add(car);
-
-            mixer = new THREE.AnimationMixer(car);
-            animations = gltf.animations;
-            
-            if (animations && animations.length) {
-                animations.forEach((clip) => {
-                    mixer.clipAction(clip).play();
-                });
-            }
-        },
-        function (xhr) {
-            console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-        },
-        function (error) {
-            console.error('Error loading the model:', error);
-        }
-    );
-}
+// Wait for DOM to be fully loaded before initializing
+document.addEventListener('DOMContentLoaded', function() {
+    init();
+});
 
 function init() {
     // Original scene setup
@@ -129,58 +26,245 @@ function init() {
     });
     renderer.setClearColor(0xf0f0f0);
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = showShadows;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('canvas-container').appendChild(renderer.domElement);
 
     // Camera position
     camera.position.z = 12;
 
-    // Lighting for main scene
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    // Lighting setup
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
 
-    const pointLight = new THREE.PointLight(0xffffff, 1.5);
-    pointLight.position.set(5, 5, 5);
-    scene.add(pointLight);
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    mainLight.position.set(5, 10, 5);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
+    mainLight.shadow.camera.near = 0.5;
+    mainLight.shadow.camera.far = 500;
+    mainLight.shadow.camera.left = -10;
+    mainLight.shadow.camera.right = 10;
+    mainLight.shadow.camera.top = 10;
+    mainLight.shadow.camera.bottom = -10;
+    scene.add(mainLight);
 
-    const pointLight2 = new THREE.PointLight(0xffffff, 1.5);
-    pointLight2.position.set(-5, -5, 5);
-    scene.add(pointLight2);
+    // Add shadow-catching plane
+    const shadowPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(50, 50),
+        new THREE.ShadowMaterial({
+            opacity: 0.2
+        })
+    );
+    shadowPlane.rotation.x = -Math.PI / 2;
+    shadowPlane.position.y = -2;
+    shadowPlane.receiveShadow = true;
+    scene.add(shadowPlane);
 
-    // Initialize both scenes
+    // Initialize car scene
     initCarScene();
     createText();
     animate();
     setupEventListeners();
 }
 
+function initCarScene() {
+    console.log('Initializing car scenes...');
+    
+    // Update container size based on scale
+    carContainerSize = baseSizeWithPadding * carScale;
+    
+    // Initialize left car scene
+    carSceneLeft = new THREE.Scene();
+    carCameraLeft = new THREE.PerspectiveCamera(32, 1, 0.1, 1000); // Reduced FOV slightly more
+    carRendererLeft = new THREE.WebGLRenderer({ 
+        antialias: true,
+        powerPreference: "high-performance",
+        alpha: true
+    });
+    
+    carRendererLeft.setClearColor(0x000000, 0);
+    carRendererLeft.setSize(carContainerSize, carContainerSize);
+    document.getElementById('car-container-left').appendChild(carRendererLeft.domElement);
+
+    // Initialize right car scene
+    carSceneRight = new THREE.Scene();
+    carCameraRight = new THREE.PerspectiveCamera(32, 1, 0.1, 1000); // Reduced FOV slightly more
+    carRendererRight = new THREE.WebGLRenderer({ 
+        antialias: true,
+        powerPreference: "high-performance",
+        alpha: true
+    });
+    
+    carRendererRight.setClearColor(0x000000, 0);
+    carRendererRight.setSize(carContainerSize, carContainerSize);
+    document.getElementById('car-container-right').appendChild(carRendererRight.domElement);
+
+    // Setup lighting for both scenes
+    [carSceneLeft, carSceneRight].forEach(scene => {
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.8);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffffff, 3.0);
+        sunLight.position.set(10, 15, 10);
+        scene.add(sunLight);
+    });
+
+    // Position cameras even further back
+    carCameraLeft.position.set(0, 0, 17);  // Increased from 15 to 17
+    carCameraLeft.lookAt(0, -1, 0);
+    
+    carCameraRight.position.set(0, 0, 17);  // Increased from 15 to 17
+    carCameraRight.lookAt(0, -1, 0);
+
+    // Load cars
+    loadCar('left');
+    loadCar('right');
+}
+
+function loadCar(side) {
+    console.log(`Loading ${side} car...`);
+    const loader = new THREE.GLTFLoader();
+    loader.load(
+        './impala_1964_lowrider.glb',
+        function (gltf) {
+            console.log(`${side} car loaded successfully:`, gltf);
+            const car = gltf.scene;
+            
+            // Create chrome material
+            const chromeMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                metalness: 1.0,
+                roughness: 0.1,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.1,
+                envMapIntensity: 1.2,
+                reflectivity: 1.0
+            });
+
+            // Load environment map
+            const cubeTextureLoader = new THREE.CubeTextureLoader();
+            cubeTextureLoader
+                .setPath('https://threejs.org/examples/textures/cube/Bridge2/')
+                .load([
+                    'posx.jpg', 'negx.jpg',
+                    'posy.jpg', 'negy.jpg',
+                    'posz.jpg', 'negz.jpg'
+                ], function(envMap) {
+                    // Convert to grayscale if needed
+                    if (isGrayscale) {
+                        envMap.images.forEach((image, index) => {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = image.width;
+                            canvas.height = image.height;
+                            
+                            ctx.drawImage(image, 0, 0);
+                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            const data = imageData.data;
+                            
+                            for (let i = 0; i < data.length; i += 4) {
+                                const gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                                data[i] = data[i + 1] = data[i + 2] = gray;
+                            }
+                            
+                            ctx.putImageData(imageData, 0, 0);
+                            envMap.images[index] = canvas;
+                        });
+                        envMap.needsUpdate = true;
+                    }
+                    
+                    chromeMaterial.envMap = envMap;
+                    chromeMaterial.needsUpdate = true;
+                });
+            
+            // Apply chrome material to car
+            car.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = chromeMaterial;
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+            
+            car.scale.set(carScale, carScale, carScale);
+            
+            if (side === 'left') {
+                car.position.set(0, -1, 0);
+                car.rotation.set(0, Math.PI / 2, 0);
+                carLeft = car;
+                carSceneLeft.add(car);
+                mixerLeft = new THREE.AnimationMixer(car);
+                if (gltf.animations.length) {
+                    gltf.animations.forEach(clip => mixerLeft.clipAction(clip).play());
+                }
+            } else {
+                car.position.set(0, -1, 0);
+                car.rotation.set(0, -Math.PI / 2, 0);
+                carRight = car;
+                carSceneRight.add(car);
+                mixerRight = new THREE.AnimationMixer(car);
+                if (gltf.animations.length) {
+                    gltf.animations.forEach(clip => mixerRight.clipAction(clip).play());
+                }
+            }
+        },
+        function (xhr) {
+            console.log(`${side} car loading progress:`, (xhr.loaded / xhr.total * 100) + '%');
+        },
+        function (error) {
+            console.error(`Error loading ${side} car:`, error);
+        }
+    );
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    
+    // Update text scene
+    letters.forEach(letter => {
+        letter.rotation.y += rotationSpeed;
+    });
+    renderer.render(scene, camera);
+
+    // Update car animations
+    if (mixerLeft) mixerLeft.update(0.016);
+    if (mixerRight) mixerRight.update(0.016);
+    
+    // Render both car scenes
+    if (carRendererLeft && carSceneLeft && carCameraLeft) {
+        carRendererLeft.render(carSceneLeft, carCameraLeft);
+    }
+    if (carRendererRight && carSceneRight && carCameraRight) {
+        carRendererRight.render(carSceneRight, carCameraRight);
+    }
+}
+
 function createText(textContent = 'CHROME') {
-    // Remove existing letters
     letters.forEach(letter => scene.remove(letter));
     letters = [];
 
     const loader = new THREE.FontLoader();
     loader.load('https://threejs.org/examples/fonts/helvetiker_bold.typeface.json', function(font) {
-        // Enhanced chrome material
         const material = new THREE.MeshStandardMaterial({
-            color: 0xffffff,  // Brighter base color
-            metalness: 1.0,   // Maximum metalness
-            roughness: 0.05,  // Very smooth surface
+            color: 0xffffff,
+            metalness: 1.0,
+            roughness: 0.05,
             envMapIntensity: 1.0,
-            flatShading: false
         });
 
-        // Create environment map for reflections with grayscale conversion
+        // Environment map loading...
         const cubeTextureLoader = new THREE.CubeTextureLoader();
-        const envMap = cubeTextureLoader
+        cubeTextureLoader
             .setPath('https://threejs.org/examples/textures/cube/Bridge2/')
             .load([
                 'posx.jpg', 'negx.jpg',
                 'posy.jpg', 'negy.jpg',
                 'posz.jpg', 'negz.jpg'
             ], function(envMap) {
-                // Only convert to grayscale if the toggle is checked
+                // Convert to grayscale if needed
                 if (isGrayscale) {
-                    // Convert each face to grayscale
                     envMap.images.forEach((image, index) => {
                         const canvas = document.createElement('canvas');
                         const ctx = canvas.getContext('2d');
@@ -199,15 +283,14 @@ function createText(textContent = 'CHROME') {
                         ctx.putImageData(imageData, 0, 0);
                         envMap.images[index] = canvas;
                     });
+                    envMap.needsUpdate = true;
                 }
                 
-                envMap.needsUpdate = true;
                 scene.environment = envMap;
                 material.envMap = envMap;
                 material.needsUpdate = true;
             });
 
-        // First, create all letters to get total width
         const letterMeshes = textContent.split('').map(char => {
             const geometry = new THREE.TextGeometry(char, {
                 font: font,
@@ -219,7 +302,9 @@ function createText(textContent = 'CHROME') {
                 bevelSegments: 5
             });
             geometry.center();
-            return new THREE.Mesh(geometry, material);
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = showShadows; // Use shadow toggle state
+            return mesh;
         });
 
         // Calculate total width with spacing
@@ -253,22 +338,6 @@ function createText(textContent = 'CHROME') {
     });
 }
 
-function animate() {
-    requestAnimationFrame(animate);
-    
-    // Update text scene
-    letters.forEach(letter => {
-        letter.rotation.y += rotationSpeed;
-    });
-    renderer.render(scene, camera);
-
-    // Update car scene
-    if (mixer) {
-        mixer.update(0.016);
-    }
-    carRenderer.render(carScene, carCamera);
-}
-
 function setupEventListeners() {
     window.addEventListener('resize', onWindowResize, false);
     
@@ -282,16 +351,38 @@ function setupEventListeners() {
         renderer.setClearColor(color);
     });
 
-    // Update grayscale toggle
     document.getElementById('grayscaleToggle').addEventListener('change', (e) => {
         isGrayscale = e.target.checked;
         createText(document.getElementById('textInput').value.toUpperCase());
         
-        // Reload car to update materials
-        if (car) {
-            carScene.remove(car);
-            loadCar();
+        if (carLeft) {
+            carSceneLeft.remove(carLeft);
+            loadCar('left');
         }
+        if (carRight) {
+            carSceneRight.remove(carRight);
+            loadCar('right');
+        }
+    });
+
+    // Add shadow toggle listener
+    document.getElementById('shadowToggle').addEventListener('change', (e) => {
+        showShadows = e.target.checked;
+        
+        // Update renderer
+        renderer.shadowMap.enabled = showShadows;
+        
+        // Update shadow plane visibility
+        scene.traverse((object) => {
+            if (object.isMesh && object.material instanceof THREE.ShadowMaterial) {
+                object.visible = showShadows;
+            }
+        });
+        
+        // Update letter shadows
+        letters.forEach(letter => {
+            letter.castShadow = showShadows;
+        });
     });
 }
 
@@ -301,4 +392,38 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-init();
+function updateCarSize(newScale) {
+    carScale = newScale;
+    carContainerSize = baseSizeWithPadding * carScale;
+    
+    // Update CSS custom property
+    document.documentElement.style.setProperty('--car-container-size', `${carContainerSize}px`);
+    
+    // Update renderer sizes
+    if (carRendererLeft) {
+        carRendererLeft.setSize(carContainerSize, carContainerSize);
+    }
+    if (carRendererRight) {
+        carRendererRight.setSize(carContainerSize, carContainerSize);
+    }
+    
+    // Update camera positions with adjusted values for wider view
+    if (carCameraLeft) {
+        carCameraLeft.position.set(0, 0, 17 + (carScale * 5)); // Increased base distance
+        carCameraLeft.lookAt(0, -1, 0);
+    }
+    if (carCameraRight) {
+        carCameraRight.position.set(0, 0, 17 + (carScale * 5)); // Increased base distance
+        carCameraRight.lookAt(0, -1, 0);
+    }
+    
+    // Update car scales and positions
+    if (carLeft) {
+        carLeft.scale.set(carScale, carScale, carScale);
+        carLeft.position.set(0, -1, 0);
+    }
+    if (carRight) {
+        carRight.scale.set(carScale, carScale, carScale);
+        carRight.position.set(0, -1, 0);
+    }
+}
