@@ -37,3 +37,15 @@ body {
     height: 200px;
     z-index: 100;
 }
+
+.checkbox-wrapper {
+    margin-top: 10px;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#grayscaleToggle {
+    cursor: pointer;
+}
