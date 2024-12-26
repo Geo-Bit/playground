@@ -5,7 +5,7 @@ let rotationSpeed = 0.01;
 function init() {
     // Scene setup
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     renderer = new THREE.WebGLRenderer({ 
         antialias: true,
         powerPreference: "high-performance"
@@ -16,8 +16,8 @@ function init() {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-    // Camera position
-    camera.position.z = 7;
+    // Camera position - moved even further back
+    camera.position.z = 12; // Increased from 10 to 12
 
     // Enhanced lighting setup for chrome effect
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -91,18 +91,18 @@ function createText(textContent = 'CHROME') {
         });
 
         // Calculate total width with spacing
-        const spacing = 0.8; // Adjust this value to increase/decrease space between letters
+        const spacing = 0.8; // Spacing between letters
         let totalWidth = 0;
         letterMeshes.forEach(mesh => {
             const bbox = new THREE.Box3().setFromObject(mesh);
             const size = bbox.getSize(new THREE.Vector3());
-            totalWidth += size.x + spacing; // Add spacing to width calculation
+            totalWidth += size.x + spacing;
         });
         totalWidth -= spacing; // Remove extra spacing after last letter
 
         // Position letters side by side with spacing
         const screenAspect = window.innerWidth / window.innerHeight;
-        const targetWidth = 6.5;
+        const targetWidth = 10; // Reduced from 12 to 10 for better fit
         const scale = (targetWidth * screenAspect) / totalWidth;
         
         let currentX = -totalWidth * scale / 2; // Start from left side
@@ -113,7 +113,7 @@ function createText(textContent = 'CHROME') {
             
             mesh.scale.set(scale, scale, scale);
             mesh.position.x = currentX + (size.x * scale / 2);
-            currentX += (size.x + spacing) * scale; // Add spacing to positioning
+            currentX += (size.x + spacing) * scale;
             
             scene.add(mesh);
             letters.push(mesh);
@@ -134,11 +134,13 @@ function setupEventListeners() {
     window.addEventListener('resize', onWindowResize, false);
     
     document.getElementById('textInput').addEventListener('input', (e) => {
-        createText(e.target.value);
+        createText(e.target.value.toUpperCase());
     });
 
     document.getElementById('bgColor').addEventListener('input', (e) => {
-        document.body.style.backgroundColor = e.target.value;
+        const color = e.target.value;
+        document.body.style.backgroundColor = color;
+        renderer.setClearColor(color);
     });
 }
 
