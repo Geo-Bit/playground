@@ -1,4 +1,5 @@
-let scene, camera, renderer, text;
+let scene, camera, renderer;
+let letters = []; // Array to store individual letter meshes
 let rotationSpeed = 0.01;
 
 function init() {
@@ -31,42 +32,67 @@ function init() {
     setupEventListeners();
 }
 
-function createText(textContent = 'HELLO') {
-    if (text) scene.remove(text);
+function createText(textContent = 'CHROME') {
+    // Remove existing letters
+    letters.forEach(letter => scene.remove(letter));
+    letters = [];
 
     const loader = new THREE.FontLoader();
     loader.load('https://threejs.org/examples/fonts/helvetiker_bold.typeface.json', function(font) {
-        const geometry = new THREE.TextGeometry(textContent, {
-            font: font,
-            size: 1,
-            height: 0.4,
-        });
-
         const material = new THREE.MeshStandardMaterial({
             color: 0x333333,
             metalness: 0.9,
             roughness: 0.1,
         });
 
-        text = new THREE.Mesh(geometry, material);
-        geometry.center();
-        
-        // Auto-scale text to fit screen
-        const bbox = new THREE.Box3().setFromObject(text);
-        const size = bbox.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y);
-        const scale = 3.5 / maxDim; // Adjust this value to change how much of the screen the text fills
-        text.scale.set(scale, scale, scale);
+        // First, create all letters to get total width
+        const letterMeshes = textContent.split('').map(char => {
+            const geometry = new THREE.TextGeometry(char, {
+                font: font,
+                size: 1,
+                height: 0.4,
+            });
+            geometry.center();
+            return new THREE.Mesh(geometry, material);
+        });
 
-        scene.add(text);
+        // Calculate total width with spacing
+        const spacing = 0.8; // Adjust this value to increase/decrease space between letters
+        let totalWidth = 0;
+        letterMeshes.forEach(mesh => {
+            const bbox = new THREE.Box3().setFromObject(mesh);
+            const size = bbox.getSize(new THREE.Vector3());
+            totalWidth += size.x + spacing; // Add spacing to width calculation
+        });
+        totalWidth -= spacing; // Remove extra spacing after last letter
+
+        // Position letters side by side with spacing
+        const screenAspect = window.innerWidth / window.innerHeight;
+        const targetWidth = 6.5;
+        const scale = (targetWidth * screenAspect) / totalWidth;
+        
+        let currentX = -totalWidth * scale / 2; // Start from left side
+        
+        letterMeshes.forEach(mesh => {
+            const bbox = new THREE.Box3().setFromObject(mesh);
+            const size = bbox.getSize(new THREE.Vector3());
+            
+            mesh.scale.set(scale, scale, scale);
+            mesh.position.x = currentX + (size.x * scale / 2);
+            currentX += (size.x + spacing) * scale; // Add spacing to positioning
+            
+            scene.add(mesh);
+            letters.push(mesh);
+        });
     });
 }
 
 function animate() {
     requestAnimationFrame(animate);
-    if (text) {
-        text.rotation.y += rotationSpeed;
-    }
+    // Rotate each letter independently
+    letters.forEach(letter => {
+        letter.rotation.y += rotationSpeed;
+    });
     renderer.render(scene, camera);
 }
 
